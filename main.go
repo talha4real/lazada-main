@@ -184,7 +184,15 @@ func addToCart(session *requests.Request, item_id string, sku_id string, seller_
 	if err == nil {
 		var json map[string]interface{}
 		resp.Json(&json)
-		status := json["module"].(map[string]interface{})["success"].(bool)
+		module, ok := json["module"].(map[string]interface{})
+		if !ok {
+			return false
+		}
+
+		status, ok := module["success"].(bool)
+		if !ok {
+			return false
+		}
 		if status {
 			return true
 		} else {
@@ -458,7 +466,9 @@ func sendDiscordNotification(webhookURL, checkoutOrderID, productName, imageURL,
 
 func processRecord(record []string) {
 	// Process the record here
+
 	name := record[0]
+	fmt.Println(name)
 	startTime := time.Now()
 	fmt.Println(name + ": " + "Starting...")
 	fmt.Println(name + ": " + "Config Loaded.")
@@ -472,12 +482,13 @@ func processRecord(record []string) {
 	fmt.Println(name + ": " + "Initiating Session.")
 	num, _ := strconv.Atoi(interval)
 	session := requests.Requests()
-	session.Proxy(proxyURL)
+	//session.Proxy(proxyURL)
 	csrfToken := initializeSession(session)
 
 	loggedIn := login(session, csrfToken, email, password)
 	if !loggedIn {
 		fmt.Println(name + ": " + "Failed to login. Maybe check your email for verification")
+		return
 	}
 
 	fmt.Println(name + ": " + "Logged in successfully.")
@@ -514,10 +525,8 @@ func processRecord(record []string) {
 	elapsed := time.Since(startTime)
 	fmt.Println(name+": "+"Execution time: %s\n", elapsed)
 }
-
 func main() {
-
-	file, err := os.Open("/Users/talhabutt/Workspace/lazada-go/lazada-checkout-bol/tasks.csv")
+	file, err := os.Open("./tasks.csv")
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -526,13 +535,10 @@ func main() {
 
 	// Create a new CSV reader
 	reader := csv.NewReader(file)
-
-	// Read and discard the first line (header)
 	if _, err := reader.Read(); err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
-
 	// Create a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 
@@ -546,7 +552,7 @@ func main() {
 				break
 			}
 			fmt.Println("Error:", err)
-			return
+			continue // Continue to the next iteration
 		}
 
 		// Process the record concurrently
@@ -554,14 +560,9 @@ func main() {
 		go func(record []string) {
 			defer wg.Done()
 			processRecord(record)
-		}(record)
+		}(append([]string(nil), record...)) // Pass a copy of the record slice
 	}
 
 	// Wait for all goroutines to finish
 	wg.Wait()
-
-	//
-
-	//
-
 }
