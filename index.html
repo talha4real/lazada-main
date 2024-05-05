@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lazada Generator</title>
+</head>
+<body>
+    <h1 style="display: flex;justify-content: center;" id="uab">Generator Started,</h1>
+    <h2  style="display: flex;justify-content: center;" >Generating headers every 10s with &lt;3</h2>
+    <h3  style="display: flex;justify-content: center;" >Made with &lt;3 by &nbsp;<a href="https://github.com/talha4real">talha4real</a>  </h3>
+    <!-- Include the external JavaScript file -->
+    <script src="https://g.alicdn.com/AWSC/uab/1.140.0/collina.js"></script>
+    <script src='https://o.alicdn.com/lzd_sec/LWSC/index.js'></script>
+
+    <script id="awsc_init">
+        function sendData(uabValue) {
+          
+            fetch('https://lazada-checkout-bol-production.up.railway.app/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ uab: uabValue })
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            }).then(data => {
+                console.log('Response from server:', data);
+            }).catch(error => {
+                console.error('Error sending data to server:', error);
+            });
+        }
+
+        function h(e) {
+            AWSC.use("uab", function (state, uab) {
+                // const uabval = document.getElementById('uab').innerText = uab.getUA();
+                // sendData(uabval); // Send the uabValue to the server
+
+                setInterval(()=>{
+                    const uabValue = uab.getUA();
+                    sendData(uabValue); // Send the uabValue to the server
+
+                },[4000])
+            if (state === "loaded") {
+                window.uabModule = uab;
+                window.UAFromHeader = uab.getUA();
+            }
+            })
+        }
+        h(null);
+
+
+      
+    </script>
+</body>
+</html>
