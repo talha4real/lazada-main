@@ -94,6 +94,17 @@ func visitProductPage(session *requests.Request, csrfToken, productURL string) (
 		"Referer":      productURL,
 		"X-CSRF-TOKEN": csrfToken,
 	}
+	// Define the regular expression pattern
+	pattern := `-s(\d+)\.`
+
+	// Compile the regular expression
+	re := regexp.MustCompile(pattern)
+
+	// Find submatch in the URL
+	matches := re.FindStringSubmatch(productURL)
+
+	// Check if there is a match
+
 	resp, err := session.Get(productURL, h)
 	if err != nil {
 		return "", "", "", "", "", ""
@@ -136,6 +147,7 @@ func visitProductPage(session *requests.Request, csrfToken, productURL string) (
 		scriptText := s.Text()
 		if regexp.MustCompile(`skuId|itemId|sellerId`).MatchString(scriptText) {
 			itemIDMatch := regexp.MustCompile(`"itemId":"(\d+)"`).FindStringSubmatch(scriptText)
+
 			skuIDMatch := regexp.MustCompile(`"skuId":"(\d+)"`).FindStringSubmatch(scriptText)
 			sellerIDMatch := regexp.MustCompile(`"sellerId":"(\d+)"`).FindStringSubmatch(scriptText)
 
@@ -143,7 +155,16 @@ func visitProductPage(session *requests.Request, csrfToken, productURL string) (
 				itemID = itemIDMatch[1]
 			}
 			if len(skuIDMatch) > 1 {
-				skuID = skuIDMatch[1]
+				if len(matches) > 1 {
+					// Print the value between "-s" and "."
+					skuID = matches[1]
+					//fmt.Println("Value between -s and .:", matches[1])
+				} else {
+					skuID = skuIDMatch[0]
+
+					//fmt.Println("No match found")
+				}
+
 			}
 			if len(sellerIDMatch) > 1 {
 				sellerID = sellerIDMatch[1]
@@ -159,6 +180,7 @@ func addToCart(session *requests.Request, item_id string, sku_id string, seller_
 	// API endpoint URL
 	url := "https://cart.lazada.co.th/cart/api/add"
 	// Define the JSON string for the payload
+
 	payload := `{
     	"addItems": [
         		{
@@ -180,7 +202,6 @@ func addToCart(session *requests.Request, item_id string, sku_id string, seller_
 	}
 
 	resp, err := session.PostJson(url, h, payload)
-
 	if err == nil {
 		var json map[string]interface{}
 		resp.Json(&json)
@@ -482,7 +503,7 @@ func processRecord(record []string) {
 	fmt.Println(name + ": " + "Initiating Session.")
 	num, _ := strconv.Atoi(interval)
 	session := requests.Requests()
-	//session.Proxy(proxyURL)
+	session.Proxy(proxyURL)
 	csrfToken := initializeSession(session)
 
 	loggedIn := login(session, csrfToken, email, password)
@@ -497,6 +518,7 @@ func processRecord(record []string) {
 	// Call the function to visit the product page and extract details
 	productName, imageURL, price, itemID, skuID, sellerID := visitProductPage(session, csrfToken, productURL)
 
+	fmt.Println(productName, imageURL, price, itemID, skuID, sellerID)
 	fmt.Println(name + ": " + "Monitoring Product.")
 
 	for {
