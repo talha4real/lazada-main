@@ -190,11 +190,11 @@ func processRecord(record []string) {
 	subDetail := record[10]
 
 	//interval := record[3]
-	//proxyURL := record[3]
+	proxyURL := record[3]
 	fmt.Println(name + ": " + "Initiating Session.")
 	//num, _ := strconv.Atoi(interval)
 	session := requests.Requests()
-	//session.Proxy(proxyURL)
+	session.Proxy(proxyURL)
 	csrfToken := initializeSession(session)
 
 	loggedIn := login(session, csrfToken, email, password)
