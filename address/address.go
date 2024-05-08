@@ -1,4 +1,4 @@
-package address
+package main
 
 import (
 	"encoding/csv"
