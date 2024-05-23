@@ -5,8 +5,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/asmcos/requests"
 	"html"
 	"net/http"
 	"os"
@@ -15,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/asmcos/requests"
 )
 
 type Configuration struct {
@@ -176,7 +177,7 @@ func visitProductPage(session *requests.Request, csrfToken, productURL string) (
 
 }
 
-func addToCart(session *requests.Request, item_id string, sku_id string, seller_id string, csrf_token string) bool {
+func addToCart(session *requests.Request, item_id string, sku_id string, seller_id string, csrf_token string, quantity string) bool {
 	// API endpoint URL
 	url := "https://cart.lazada.co.th/cart/api/add"
 	// Define the JSON string for the payload
@@ -186,7 +187,7 @@ func addToCart(session *requests.Request, item_id string, sku_id string, seller_
         		{
             	"itemId": "` + item_id + `",
             	"skuId": "` + sku_id + `",
-            	"quantity": 1,
+				"quantity": "` + quantity + `",
             	"extendInfo": {},
             	"attributes": {
                 	"sellerId": "` + seller_id + `"
@@ -424,15 +425,16 @@ func placeOrder(session *requests.Request, csrfToken, itemID, skuID string, para
 	return ""
 }
 
-func sendDiscordNotification(webhookURL, checkoutOrderID, productName, imageURL, price, email, password, proxy string) {
+func sendDiscordNotification(webhookURL string, checkoutOrderID string, productName string, imageURL string, price string, email string, password string, quantity string, proxy string, timeElapse time.Duration) {
 	paymentURL := checkoutOrderID
 	expirationTime := time.Now().Add(4320 * time.Minute).Unix()
+	timeElapseInSeconds := int(timeElapse.Seconds())
 
 	// Create the embed data
 	embedData := map[string]interface{}{
 		"embeds": []map[string]interface{}{
 			{
-				"title":       "Order Placed 🚀",
+				"title":       "FriendsAIO- Order Placed 🚀",
 				"description": "Please complete your payment.",
 				"Payment Url": paymentURL,
 				"color":       15526829, // RGB value (239, 176, 69) converted to decimal
@@ -440,15 +442,71 @@ func sendDiscordNotification(webhookURL, checkoutOrderID, productName, imageURL,
 					{"name": "Store", "value": "Lazada - TH", "inline": true},
 					{"name": "Product", "value": productName, "inline": true},
 					{"name": "Product Price", "value": price, "inline": true},
+					{"name": "Checkout Time", "value": timeElapseInSeconds, "inline": true},
 					{"name": "Account", "value": email, "inline": true},
 					{"name": "Password", "value": password, "inline": true},
-					{"name": "Quantity", "value": "1", "inline": true},
+					{"name": "Quantity", "value": quantity, "inline": true},
 					{"name": "Payment Link Expires", "value": fmt.Sprintf("<t:%d:R>", expirationTime), "inline": true},
 					{"name": "Proxy Used", "value": proxy, "inline": false},
 					{"name": "Complete Payment", "value": fmt.Sprintf("[Click to Pay 💵](%s)", paymentURL), "inline": false},
 				},
 				"thumbnail": map[string]interface{}{"url": imageURL},
-				"footer":    map[string]interface{}{"text": "LazadaBot"},
+				"footer":    map[string]interface{}{"text": "FriendsAIO"},
+			},
+		},
+	}
+
+	// Marshal the embed data to JSON
+	jsonData, err := json.Marshal(embedData)
+	if err != nil {
+		fmt.Println("Error marshalling JSON:", err)
+		return
+	}
+
+	// Send POST request to Discord webhook
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Create HTTP client and send request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode == http.StatusNoContent {
+		fmt.Println("Notification sent to Discord successfully.")
+	} else {
+		fmt.Printf("Failed to send notification to Discord: %d\n", resp.StatusCode)
+	}
+}
+
+func sendPublicDiscordNotification(webhookURL string, productName string, imageURL string, price string, quantity string, timeElapse time.Duration) {
+	timeElapseInSeconds := int(timeElapse.Seconds())
+
+	// Create the embed data
+	embedData := map[string]interface{}{
+		"embeds": []map[string]interface{}{
+			{
+				"title":       "FriendsAIO- Order Placed 🚀",
+				"description": "Please complete your payment.",
+				"color":       15526829, // RGB value (239, 176, 69) converted to decimal
+				"fields": []map[string]interface{}{
+					{"name": "Store", "value": "Lazada - TH", "inline": true},
+					{"name": "Product", "value": productName, "inline": true},
+					{"name": "Product Price", "value": price, "inline": true},
+					{"name": "Checkout Time", "value": timeElapseInSeconds, "inline": true},
+					{"name": "Quantity", "value": quantity, "inline": true},
+				},
+				"thumbnail": map[string]interface{}{"url": imageURL},
+				"footer":    map[string]interface{}{"text": "FriendsAIO"},
 			},
 		},
 	}
@@ -500,10 +558,12 @@ func processRecord(record []string) {
 	interval := record[3]
 	webhook := record[6]
 	proxyURL := record[4]
+	quantity := record[7]
+
 	fmt.Println(name + ": " + "Initiating Session.")
 	num, _ := strconv.Atoi(interval)
 	session := requests.Requests()
-	session.Proxy(proxyURL)
+	// session.Proxy(proxyURL)
 	csrfToken := initializeSession(session)
 
 	loggedIn := login(session, csrfToken, email, password)
@@ -522,7 +582,7 @@ func processRecord(record []string) {
 	fmt.Println(name + ": " + "Monitoring Product.")
 
 	for {
-		if addToCart(session, itemID, skuID, sellerID, csrfToken) {
+		if addToCart(session, itemID, skuID, sellerID, csrfToken, quantity) {
 			fmt.Println(name + ": " + "Product successfully added to cart.")
 			break // Exit the loop when addToCart returns true
 		} else {
@@ -538,14 +598,17 @@ func processRecord(record []string) {
 	}
 	userdata, _ := getUserData(session, csrfToken)
 	id := placeOrder(session, csrfToken, itemID, skuID, initData, userdata)
+	elapsed := time.Since(startTime)
+	fmt.Println(name+": "+"Execution time: %s\n", elapsed)
+
 	if len(id) > 0 {
 		fmt.Println(name + ": " + "Order successfully placed.")
-		sendDiscordNotification(webhook, id, productName, imageURL, price, email, password, proxyURL)
+		sendPublicDiscordNotification("https://discordapp.com/api/webhooks/1153126860239155221/MX5HdCeEIt_9d1RiCjlHUh6HE2OktFcekhCD-SUt8tBUU_BLpr9sn4wM-DImJCtBYoSv", productName, imageURL, price, quantity, elapsed)
+		sendDiscordNotification(webhook, id, productName, imageURL, price, email, password, quantity, proxyURL, elapsed)
 	} else {
 		fmt.Println(name + ": " + "Failed to place order.")
 	}
-	elapsed := time.Since(startTime)
-	fmt.Println(name+": "+"Execution time: %s\n", elapsed)
+
 }
 func main() {
 	file, err := os.Open("./tasks.csv")
