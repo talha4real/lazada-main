@@ -563,7 +563,7 @@ func processRecord(record []string) {
 	fmt.Println(name + ": " + "Initiating Session.")
 	num, _ := strconv.Atoi(interval)
 	session := requests.Requests()
-	// session.Proxy(proxyURL)
+	session.Proxy(proxyURL)
 	csrfToken := initializeSession(session)
 
 	loggedIn := login(session, csrfToken, email, password)
